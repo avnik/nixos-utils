@@ -2,6 +2,10 @@
 name = "nixos-utils"
 version = "0.1.0"
 authors = ["Alexander V. Nikolaev <avn@avnik.info>"]
+publish = false
+
+[lib]
+name = "nixos_utils"
 
 [dependencies]
 atomicwrites = "0.2.2"
