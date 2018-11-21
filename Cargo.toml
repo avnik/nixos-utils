@@ -1,0 +1,9 @@
+[package]
+name = "nixos-utils"
+version = "0.1.0"
+authors = ["Alexander V. Nikolaev <avn@avnik.info>"]
+
+[dependencies]
+atomicwrites = "0.2.2"
+clap = "~2.27.0"
+serde_json = "*"
