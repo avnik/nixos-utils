@@ -9,5 +9,8 @@ name = "nixos_utils"
 
 [dependencies]
 atomicwrites = "0.2.2"
-clap = "~2.27.0"
+clap = "*"
+serde = "*"
 serde_json = "*"
+serde_derive = "*"
+pgs-files = "*"
