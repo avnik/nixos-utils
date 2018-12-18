@@ -17,7 +17,7 @@ use std::fs;
 use std::fs::File;
 use std::io;
 use pgs_files::{passwd,group,shadow};
-use nixos_utils::*;
+use nixos_utils::files::*;
 
 const STATE_DIR: &str = "/var/lib/nixos";
 const UID_MAP_FILE: &str = "uid-map";
