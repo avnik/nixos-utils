@@ -1,5 +1,9 @@
 extern crate clap;
 extern crate pgs_files;
+
+#[macro_use]
+extern crate log;
+
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
@@ -37,12 +41,12 @@ struct UsersGroups {
 struct SpecUsers {
     name: String,
     uid: i32,
-    gorup: String,
+    group: String,
     description: String,
     home: String,
     createHome: String,
     is_system_dir: bool,
-    password: String,
+    password: Option<String>,
     password_file: String,
     hashed_password: String,
     initial_password: String,
@@ -52,15 +56,16 @@ struct SpecUsers {
 #[derive(Deserialize)]
 struct SpecGroups {
     name: String,
-    gid: i32,
-    members: Vec<i32>
+    gid: Option<i32>,
+    members: Vec<i32>,
+    password: Option<String>
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Spec {
-    users: SpecUsers,
-    groups: SpecGroups,
+    users: Vec<SpecUsers>,
+    groups: Vec<SpecGroups>,
     mutable_users: bool
 }
 
@@ -112,6 +117,30 @@ impl ToStringXXX for group::GroupEntry {
     }
 }
 
+// test injection
+trait IdAllocator {
+    pub fn check_uid(int) -> bool;
+    pub fn check_gid(int) -> bool;
+}
+
+struct TestIdAllocator {
+    known_users: Vec<i32>,
+    known_groups: Vec<i32>
+}
+
+// FIXME: uncomment, when real one will be written
+// #[cfg(test)]
+impl IdAllocator for TestIdAllocator {
+    // FIXME: real one should use getpwuid() to check
+    pub fn check_uid(&self: IdAllocator , uid) -> bool {
+        self.known_users.member(uid);
+    };
+    // FIXME: real one should use getgrid() to check
+    pub fn check_uid(&self: IdAllocator , uid) -> bool {
+        self.known_groups.member(gid);
+    }
+}
+
 impl UsersGroups {
     pub fn save(&self, path: &Path) -> io::Result<()> {
         fs::create_dir_all(path.join(STATE_DIR))?;
@@ -145,6 +174,50 @@ impl UsersGroups {
             declarative_users: read_json_or_empty(&path.join(STATE_DIR).join(DECLARATIVE_USERS)),
             declarative_groups: read_json_or_empty(&path.join(STATE_DIR).join(DECLARATIVE_GROUPS)),
         }
+    }
+
+    pub fn update_groups(self: &mut UsersGroups, spec: &Spec) {
+        let groups_out = spec.groups.iter().map(|g| {
+            let if_exist = self.group.get(g.name);
+            let new_gid = match (if_exist, g.gid) {
+                (Some(existing), Some(old)) if old != existing.gid => {
+                    warn!("warning: not applying GID change of group ‘{}’ ({} -> {})\n", g.name, existing.gid, g.gid);
+                    old
+                },
+                (Some(existing), Some(old)) =>  old,
+                (Some(existing), None) => existing.gid,
+                (None, Some(old)) => old,
+                (None, None) => alloc_gid(g.name)
+            };
+
+            let pwd = match if_exist {
+                Some(existing) => existing.passwd,
+                None => g.password.unwrap_or("x".to_string()),
+            };
+
+            let members = g.members; // FIXME: merge members
+
+            group::GroupEntry{
+                name: g.name,
+                passwd: pwd,
+                gid: new_gid,
+                members: members,
+            }
+        }).collect();
+
+        // FIXME: gidMap
+        self.group.iter().for_each(|g| {
+            if !groups_out.contain_key(g.name) {
+                if !spec.mutable_users || self.declarative_groups.contain_key(g.name) {
+                    warn!("Removing group ‘{}’\n", g.name)
+                } else {
+                    groups_out.insert(g.name, g)
+                }
+            }
+        });
+
+        self.group = groups_out;
+        Ok(());
     }
 }
 
